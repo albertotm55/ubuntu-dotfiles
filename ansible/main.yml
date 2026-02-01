@@ -1,0 +1,57 @@
+---
+- name: "Sincronización Pop!_OS 24.04 + GNOME Híbrido"
+  hosts: local
+  become: yes  # Necesario para instalar paquetes
+  vars:
+    user_home: "/home/{{ ansible_env.USER }}"
+
+  tasks:
+    # ---------------------------------------------------------
+    # 1. INSTALACIÓN DE PAQUETES DE SISTEMA Y GNOME BASE
+    # ---------------------------------------------------------
+    - name: "Actualizar caché de apt"
+      apt:
+        update_cache: yes
+
+    - name: "Instalar Core de GNOME y Herramientas (Fix para 24.04)"
+      apt:
+        name:
+          # Herramientas base
+          - git
+          - curl
+          - dconf-cli
+          # Paquetes para recuperar GNOME Clásico
+          - gnome-session
+          - gnome-core
+          - gnome-tweaks
+          - pop-theme
+          # Extensiones y utilidades necesarias
+          - gnome-shell-extension-manager
+          - gnome-shell-extension-desktop-icons-ng #
+        state: present
+
+    # ---------------------------------------------------------
+    # 2. ARREGLOS ESPECÍFICOS (TERMINAL Y TEMAS)
+    # ---------------------------------------------------------
+    - name: "Fijar GNOME Terminal como emulador por defecto"
+      # Esto automatiza el 'sudo update-alternatives' de la guía
+      community.general.alternatives:
+        name: x-terminal-emulator
+        path: /usr/bin/gnome-terminal.wrapper
+      ignore_errors: yes # Por si acaso no tienes la colección community instalada
+
+    # ---------------------------------------------------------
+    # 3. RESTAURAR CONFIGURACIÓN VISUAL (DCONF)
+    # ---------------------------------------------------------
+    - name: "Restaurar configuración de GNOME (Atajos, Dock, Tema)"
+      # Importante: Ejecutar como tu usuario, NO como root
+      become: no
+      shell: "dconf load / < {{ user_home }}/Documents/dotfiles/gnome/backup/settings.dconf"
+      # Solo ejecuta esto si existe el archivo de backup
+      args:
+        removes: "{{ user_home }}/Documents/dotfiles/gnome/backup/settings.dconf"
+
+    # ---------------------------------------------------------
+    # 4. INSTALAR SOFTWARE ADICIONAL (Ejemplo: Kinto / Docker)
+    # ---------------------------------------------------------
+    # Aquí puedes añadir tus bloques de Docker o Kinto de tu guía anterior
