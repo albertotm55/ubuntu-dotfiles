@@ -1,57 +1,88 @@
 ---
 - name: "Sincronización Pop!_OS 24.04 + GNOME Híbrido"
   hosts: local
-  become: yes  # Necesario para instalar paquetes
+  become: yes
   vars:
     user_home: "/home/{{ ansible_env.USER }}"
 
   tasks:
     # ---------------------------------------------------------
-    # 1. INSTALACIÓN DE PAQUETES DE SISTEMA Y GNOME BASE
+    # 0. REPOSITORIOS PREVIOS (Necesarios para VSCode y Docker)
+    # ---------------------------------------------------------
+    # Nota: Pop!_OS suele traer los repos básicos, pero para VSCode
+    # a veces hace falta añadir el de Microsoft. Si falla la instalación
+    # de 'code', avísame y añadimos el bloque de repositorio.
+
+    # ---------------------------------------------------------
+    # 1. ACTUALIZAR SISTEMA
     # ---------------------------------------------------------
     - name: "Actualizar caché de apt"
       apt:
         update_cache: yes
 
-    - name: "Instalar Core de GNOME y Herramientas (Fix para 24.04)"
+    # ---------------------------------------------------------
+    # 2. INSTALACIÓN DE PAQUETES
+    # ---------------------------------------------------------
+    - name: "Instalar Aplicaciones Seleccionadas"
       apt:
         name:
-          # Herramientas base
+          # --- BASICO SISTEMA ---
           - git
           - curl
-          - dconf-cli
-          # Paquetes para recuperar GNOME Clásico
-          - gnome-session
+          - build-essential      # Compiladores (gcc, make) necesarios para devs
+          - apt-transport-https
+          - pipx                 # Para instalar apps de python aisladas
+
+          # --- GNOME & PERSONALIZACIÓN ---
+          - gnome-session        # Para sesión GNOME pura
           - gnome-core
           - gnome-tweaks
-          - pop-theme
-          # Extensiones y utilidades necesarias
           - gnome-shell-extension-manager
-          - gnome-shell-extension-desktop-icons-ng #
+          - gnome-shell-extension-desktop-icons-ng
+          - pop-theme
+
+          # --- HERRAMIENTAS DE HARDWARE/SISTEMA ---
+          - timeshift            # Backups del sistema (IMPRESCINDIBLE)
+          - tlp                  # Ahorro de batería avanzado
+          - howdy                # Desbloqueo facial (Windows Hello)
+          - input-remapper       # Mapeo de teclas/ratón
+          - ntfs-3g              # Soporte discos Windows
+
+          # --- DESARROLLO ---
+          - code                 # Visual Studio Code
+          - docker-ce            # Motor Docker
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+
+          # --- MULTIMEDIA ---
+          - vlc
+          - ffmpeg
+          - ubuntu-restricted-extras # Codecs de audio/video propietarios
         state: present
+        install_recommends: yes
 
     # ---------------------------------------------------------
-    # 2. ARREGLOS ESPECÍFICOS (TERMINAL Y TEMAS)
+    # 3. ARREGLOS GNOME (Terminal y Dconf)
     # ---------------------------------------------------------
     - name: "Fijar GNOME Terminal como emulador por defecto"
-      # Esto automatiza el 'sudo update-alternatives' de la guía
       community.general.alternatives:
         name: x-terminal-emulator
         path: /usr/bin/gnome-terminal.wrapper
-      ignore_errors: yes # Por si acaso no tienes la colección community instalada
+      ignore_errors: yes
 
-    # ---------------------------------------------------------
-    # 3. RESTAURAR CONFIGURACIÓN VISUAL (DCONF)
-    # ---------------------------------------------------------
-    - name: "Restaurar configuración de GNOME (Atajos, Dock, Tema)"
-      # Importante: Ejecutar como tu usuario, NO como root
+    - name: "Restaurar configuración visual de GNOME"
       become: no
       shell: "dconf load / < {{ user_home }}/Documents/dotfiles/gnome/backup/settings.dconf"
-      # Solo ejecuta esto si existe el archivo de backup
       args:
         removes: "{{ user_home }}/Documents/dotfiles/gnome/backup/settings.dconf"
 
     # ---------------------------------------------------------
-    # 4. INSTALAR SOFTWARE ADICIONAL (Ejemplo: Kinto / Docker)
+    # 4. POST-INSTALACIÓN (Servicios)
     # ---------------------------------------------------------
-    # Aquí puedes añadir tus bloques de Docker o Kinto de tu guía anterior
+    - name: "Habilitar servicio de ahorro de batería (TLP)"
+      service:
+        name: tlp
+        enabled: yes
+        state: started
